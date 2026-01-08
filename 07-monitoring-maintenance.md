@@ -39,11 +39,13 @@ Run these commands each day (or whenever you log in):
 docker ps
 
 # Expected output:
-CONTAINER ID   IMAGE                     COMMAND                  CREATED       STATUS       PORTS                                      NAMES
-9a83c7c80c84   phpmyadmin:5.2            "/docker-entrypoint.…"   4 hours ago   Up 2 hours   80/tcp                                     phpmy
-40531b01cca6   docker.n8n.io/n8nio/n8n   "tini -- /docker-ent…"   4 hours ago   Up 2 hours   127.0.0.1:5678->5678/tcp                   n8n
-5266a2052a97   mysql:8.4                 "docker-entrypoint.s…"   4 hours ago   Up 2 hours   3306/tcp, 33060/tcp                        db_core
-2f4f3a92eec9   traefik                   "/entrypoint.sh --ap…"   4 hours ago   Up 2 hours   0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp   traefik
+CONTAINER ID   IMAGE                     COMMAND                  CREATED        STATUS       PORTS                                      NAMES
+b89dcc467175   phpmyadmin:5.2            "/docker-entrypoint.…"   17 hours ago   Up 7 hours   80/tcp                                     phpmy
+27b635555c20   dpage/pgadmin4:9          "/entrypoint.sh"         17 hours ago   Up 7 hours   80/tcp, 443/tcp                            pgadmin
+3ef0351fce81   docker.n8n.io/n8nio/n8n   "tini -- /docker-ent…"   17 hours ago   Up 7 hours   127.0.0.1:5678->5678/tcp                   n8n
+d96aefe03d77   postgres:17               "docker-entrypoint.s…"   17 hours ago   Up 7 hours   5432/tcp                                   postgres
+a6006df13d7f   mysql:8.4                 "docker-entrypoint.s…"   17 hours ago   Up 7 hours   3306/tcp, 33060/tcp                        db_core
+d878b558c411   traefik                   "/entrypoint.sh --ap…"   17 hours ago   Up 7 hours   0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp   traefik
 ```
 
 > 💡 **TIP:** Look for the "STATUS" column. It should say "Up X days" or "Up X hours". If you see "Restarting" or "Exited", something is wrong.
@@ -54,11 +56,11 @@ df -h
 
 # Expected output:
 Filesystem      Size  Used Avail Use% Mounted on
-tmpfs           197M  1.1M  196M   1% /run
-/dev/vda1        19G  6.4G   12G  36% /
-tmpfs           984M     0  984M   0% /dev/shm
+tmpfs           392M  1.3M  391M   1% /run
+/dev/vda1        38G  7.6G   29G  22% /
+tmpfs           2.0G     0  2.0G   0% /dev/shm
 tmpfs           5.0M     0  5.0M   0% /run/lock
-tmpfs           197M  8.0K  197M   1% /run/user/1000
+tmpfs           392M  8.0K  392M   1% /run/user/1000
 ```
 
 > ⚠️ **IMPORTANT:** If "Use%" is above 80%, you need to free up space soon or contact me to upgrade your server. Above 90% is critical!
@@ -69,7 +71,7 @@ free -h
 
 # Expected output:
                total        used        free      shared  buff/cache   available
-Mem:           1.9Gi       1.1Gi        95Mi       6.5Mi       886Mi       804Mi
+Mem:           3.8Gi       1.5Gi       979Mi        39Mi       1.6Gi       2.3Gi
 Swap:             0B          0B          0B
 ```
 
@@ -87,7 +89,7 @@ df -h /
 
 # Example output:
 Filesystem      Size  Used Avail Use% Mounted on
-/dev/vda1        19G  6.4G   12G  36% /
+/dev/vda1        38G  7.6G   29G  22% /
 ```
 
 ```bash
@@ -106,9 +108,9 @@ docker system df
 
 # Example output:
 TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
-Images          5         4         4.141GB   4.022GB (97%)
-Containers      4         4         47.73MB   0B (0%)
-Local Volumes   4         4         386.7MB   0B (0%)
+Images          7         6         5.42GB    5.301GB (97%)
+Containers      6         6         62.57MB   0B (0%)
+Local Volumes   6         6         449.9MB   0B (0%)
 Build Cache     0         0         0B        0B
 ```
 
@@ -151,7 +153,7 @@ find ~/docker/backups -name "*.tar.gz" -mtime +30 -ls
 Create a simple disk space monitoring script:
 
 ```bash
-nano ~/check-disk.sh
+nano ~/docker/maintenance/check-disk.sh
 ```
 
 Paste this content:
@@ -180,11 +182,11 @@ fi
 Make it executable and run it:
 
 ```bash
-chmod +x ~/check-disk.sh
-~/check-disk.sh
+chmod +x ~/docker/maintenance/check-disk.sh
+~/docker/maintenance/check-disk.sh
 
 # Example output:
-# ✅ Disk usage OK: 31%
+✅ Disk usage OK: 22%
 ```
 
 ---
@@ -202,15 +204,15 @@ top
 
 **Understanding `top` output:**
 ```
-top - 14:23:45 up 5 days,  3:42,  1 user,  load average: 0.15, 0.20, 0.18
-Tasks: 145 total,   1 running, 144 sleeping,   0 stopped,   0 zombie
-%Cpu(s):  2.3 us,  0.8 sy,  0.0 ni, 96.5 id,  0.4 wa,  0.0 hi,  0.0 si,  0.0 st
-MiB Mem :   7982.5 total,   4238.2 free,   2107.8 used,   1636.5 buff/cache
-MiB Swap:   2048.0 total,   2048.0 free,      0.0 used.   5421.3 avail Mem
+top - 09:04:47 up  7:00,  2 users,  load average: 0.01, 0.01, 0.00
+Tasks: 148 total,   1 running, 147 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  0.5 us,  0.5 sy,  0.0 ni, 98.8 id,  0.0 wa,  0.0 hi,  0.0 si,  0.2 st
+MiB Mem :   3915.9 total,    957.3 free,   1580.3 used,   1665.4 buff/cache
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   2335.6 avail Mem
 
-  PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
- 1234 user      20   0  850000 150000  25000 S   5.0   1.8   2:34.56 node
- 5678 mysql     20   0 1850000 450000  35000 S   3.0   5.5  10:23.45 mysqld
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+  12537 999       20   0 2254068 494684  36992 S   1.3  12.3   2:11.48 mysqld
+     37 root      20   0       0      0      0 S   0.3   0.0   0:01.52 kcompactd0
 ```
 
 > 💡 **TIP:** Look at the "load average" numbers. They should be below the number of CPU cores. For a 2-core server, load should be below 2.0. For 4 cores, below 4.0.
@@ -239,11 +241,13 @@ htop
 docker stats
 
 # Example output (updates every second):
-CONTAINER ID   NAME      CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O        PIDS
-9a83c7c80c84   phpmy     0.01%     12.53MiB / 1.922GiB   0.64%     5.16kB / 126B     18.3MB / 4.1kB   6
-40531b01cca6   n8n       0.58%     325.9MiB / 1.922GiB   16.56%    24.5kB / 41.4kB   116MB / 12.3kB   20
-5266a2052a97   db_core   1.31%     454.6MiB / 1.922GiB   23.10%    5.37kB / 126B     50MB / 17.6MB    34
-2f4f3a92eec9   traefik   0.00%     74.19MiB / 1.922GiB   3.77%     868kB / 1.03MB    90MB / 0B        7
+CONTAINER ID   NAME       CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O         PIDS
+b89dcc467175   phpmy      0.01%     117.9MiB / 3.824GiB   3.01%     666kB / 1.29MB    70.7MB / 1.98MB   11
+27b635555c20   pgadmin    0.04%     361.4MiB / 3.824GiB   9.23%     2.04MB / 41.2MB   173MB / 4.42MB    15
+3ef0351fce81   n8n        0.30%     407MiB / 3.824GiB     10.39%    6.32MB / 5.79MB   240MB / 47.6MB    20
+d96aefe03d77   postgres   0.00%     66.67MiB / 3.824GiB   1.70%     5.81MB / 6.5MB    49.1MB / 4.02MB   7
+a6006df13d7f   db_core    1.69%     449.9MiB / 3.824GiB   11.49%    222B / 126B       43.6MB / 17.8MB   34
+d878b558c411   traefik    0.00%     170.3MiB / 3.824GiB   4.35%     44.5MB / 49.1MB   162MB / 0B        8
 ```
 
 > 💡 **TIP:** Press Ctrl+C to exit. Look for any container using close to 100% CPU consistently - that's unusual.
@@ -258,7 +262,7 @@ docker stats --no-stream
 Create a monitoring script:
 
 ```bash
-nano ~/check-resources.sh
+nano ~/docker/maintenance/check-resources.sh
 ```
 
 Paste this:
@@ -295,29 +299,31 @@ echo "✅ Check completed at $(date)"
 Make it executable:
 
 ```bash
-chmod +x ~/check-resources.sh
-~/check-resources.sh
+chmod +x ~/docker/maintenance/check-resources.sh
+~/docker/maintenance/check-resources.sh
 
 # Example output:
-# === System Resources Check ===
-# 
-# 📊 CPU Load Average:
-#    load average: 0.15, 0.20, 0.18
-# 
-# 💾 Memory Usage:
-#    Used: 2.1G / 7.8G (27%)
-# 
-# 💿 Disk Usage:
-#    Used: 15G / 50G (31%)
-# 
-# 🐳 Docker Containers:
-#    n8n: Up 2 days
-#    traefik: Up 2 days
-#    db_core: Up 2 days
-# 
-# ✅ Check completed at Mon Jan 15 14:30:45 UTC 2024
-```
+=== System Resources Check ===
 
+📊 CPU Load Average:
+   0.00,0.00,0.00
+
+💾 Memory Usage:
+   Used: 1.5Gi / 3.8Gi (39%)
+
+💿 Disk Usage:
+   Used: 7.6G / 38G (22%)
+
+🐳 Docker Containers:
+phpmy: Up 7 hours
+pgadmin: Up 7 hours
+n8n: Up 7 hours
+postgres: Up 7 hours
+db_core: Up 3 hours
+traefik: Up 7 hours
+
+✅ Check completed at Wed Jan  7 09:07:19 CET 2026
+```
 ---
 
 ## Service Health Checks
@@ -329,11 +335,13 @@ chmod +x ~/check-resources.sh
 docker compose ps
 
 # Example output:
-NAME      IMAGE                     COMMAND                  SERVICE   CREATED        STATUS        PORTS
-db_core   mysql:8.4                 "docker-entrypoint.s…"   db_core   24 hours ago   Up 22 hours   3306/tcp, 33060/tcp
-n8n       docker.n8n.io/n8nio/n8n   "tini -- /docker-ent…"   n8n       24 hours ago   Up 22 hours   127.0.0.1:5678->5678/tcp
-phpmy     phpmyadmin:5.2            "/docker-entrypoint.…"   phpmy     24 hours ago   Up 22 hours   80/tcp
-traefik   traefik                   "/entrypoint.sh --ap…"   traefik   24 hours ago   Up 22 hours   0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
+NAME       IMAGE                     COMMAND                  SERVICE    CREATED        STATUS       PORTS
+db_core    mysql:8.4                 "docker-entrypoint.s…"   db_core    17 hours ago   Up 7 hours   3306/tcp, 33060/tcp
+n8n        docker.n8n.io/n8nio/n8n   "tini -- /docker-ent…"   n8n        17 hours ago   Up 7 hours   127.0.0.1:5678->5678/tcp
+pgadmin    dpage/pgadmin4:9          "/entrypoint.sh"         pgadmin    17 hours ago   Up 7 hours   80/tcp, 443/tcp
+phpmy      phpmyadmin:5.2            "/docker-entrypoint.…"   phpmy      17 hours ago   Up 7 hours   80/tcp
+postgres   postgres:17               "docker-entrypoint.s…"   postgres   17 hours ago   Up 7 hours   5432/tcp
+traefik    traefik                   "/entrypoint.sh --ap…"   traefik    17 hours ago   Up 7 hours   0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
 ```
 
 > 💡 **TIP:** "Up X days" is good. "Restarting" or "Exited" means there's a continuous problem.
@@ -400,7 +408,7 @@ www-authenticate: Basic realm="traefik"
 ### Service Health Check Script
 
 ```bash
-nano ~/check-services.sh
+nano ~/docker/maintenance/check-services.sh
 ```
 
 Paste this:
@@ -421,7 +429,7 @@ echo "✅ Docker is running"
 echo ""
 
 # Check each service
-services=("traefik" "n8n" "db_core" "phpmy")
+services=("traefik" "n8n" "db_core" "phpmy" "pgadmin" "postgres")
 
 for service in "${services[@]}"; do
     status=$(docker inspect "$service" --format='{{.State.Status}}' 2>/dev/null)
@@ -441,20 +449,23 @@ echo "Check completed at $(date)"
 Make executable and run:
 
 ```bash
-chmod +x ~/check-services.sh
-~/check-services.sh
+chmod +x ~/docker/maintenance/check-services.sh
+~/docker/maintenance/check-services.sh
 
 # Example output:
-# === Service Health Check ===
-# 
-# ✅ Docker is running
-# 
-# ✅ traefik: Running (Restarts: 0)
-# ✅ n8n: Running (Restarts: 0)
-# ✅ db_core: Running (Restarts: 0)
-# ✅ phpmy: Running (Restarts: 0)
-# 
-# Check completed at Mon Jan 15 14:35:21 UTC 2024
+=== Service Health Check ===
+
+✅ Docker is running
+
+✅ traefik: Running (Restarts: 0)
+✅ n8n: Running (Restarts: 0)
+✅ db_core: Running (Restarts: 0)
+✅ phpmy: Running (Restarts: 0)
+✅ pgadmin: Running (Restarts: 0)
+✅ postgres: Running (Restarts: 0)
+
+Check completed at Wed Jan  7 09:12:50 CET 2026
+
 ```
 
 ---
@@ -465,13 +476,14 @@ chmod +x ~/check-services.sh
 
 ```bash
 # View recent logs from n8n
-docker compose logs n8n --tail=50
+docker compose logs n8n --tail=5
 
 # Example output:
-n8n  | Registered runner "JS Task Runner" 
-n8n  | Version: 2.1.2
+n8n  | Registered runner "JS Task Runner" (-aaqJtHGhMG6wDBzBJTaQ)
+n8n  | Version: 2.2.3
+n8n  |
 n8n  | Editor is now accessible via:
-n8n  | https://n8n.nocodenode.website
+n8n  | https://n8n.yourdomain.website
 ```
 
 ```bash
@@ -534,7 +546,7 @@ sudo journalctl -p err --since today
 ### Log Monitoring Script
 
 ```bash
-nano ~/check-logs.sh
+nano ~/docker/maintenance/check-logs.sh
 ```
 
 Paste this:
@@ -546,18 +558,20 @@ echo "=== Recent Log Issues ==="
 echo ""
 
 # Check for errors in last hour
-echo "🔍 Checking for errors in last hour..."
+echo "🔍 Checking for errors in last 24h..."
 echo ""
 
 # Docker logs
-errors=$(docker compose logs --since 1h 2>&1 | grep -i "error\|critical\|fatal" | wc -l)
+error_logs=$(docker compose logs --since 24h 2>&1 | grep -i "error\|critical\|fatal")
+errors=$(echo "$error_logs" | wc -l)
 
 if [ "$errors" -gt 0 ]; then
     echo "⚠️  Found $errors error(s) in container logs:"
-    docker compose logs --since 1h 2>&1 | grep -i "error\|critical\|fatal" | tail -10
+    echo "$error_logs" | tail -n "$errors"
 else
     echo "✅ No errors found in container logs"
 fi
+
 
 echo ""
 echo "Check completed at $(date)"
@@ -566,8 +580,8 @@ echo "Check completed at $(date)"
 Make executable:
 
 ```bash
-chmod +x ~/check-logs.sh
-~/check-logs.sh
+chmod +x ~/docker/maintenance/check-logs.sh
+~/docker/maintenance/check-logs.sh
 ```
 
 ---
@@ -585,16 +599,16 @@ crontab -e
 # Add these lines:
 
 # Daily health check at 8 AM
-0 8 * * * /home/USERNAME/check-resources.sh >> /home/USERNAME/health-check.log 2>&1
+0 8 * * * /home/USERNAME/docker/maintenance/check-resources.sh >> /home/USERNAME/health-check.log 2>&1
 
 # Daily service check at 9 AM
-0 9 * * * /home/USERNAME/check-services.sh >> /home/USERNAME/health-check.log 2>&1
+0 9 * * * /home/USERNAME/docker/maintenance/check-services.sh >> /home/USERNAME/health-check.log 2>&1
 
 # Weekly log check every Monday at 10 AM
-0 10 * * 1 /home/USERNAME/check-logs.sh >> /home/USERNAME/health-check.log 2>&1
+0 10 * * 1 /home/USERNAME/docker/maintenance/check-logs.sh >> /home/USERNAME/health-check.log 2>&1
 
 # Daily disk space check at 11 AM
-0 11 * * * /home/USERNAME/check-disk.sh >> /home/USERNAME/health-check.log 2>&1
+0 11 * * * /home/USERNAME/docker/maintenance/check-disk.sh >> /home/USERNAME/health-check.log 2>&1
 ```
 
 > 💡 **TIP:** Change "USERNAME" to your actual username.
@@ -660,7 +674,7 @@ docker ps && echo "---" && df -h / && echo "---" && free -h
 
 **Weekly check script:**
 ```bash
-nano ~/weekly-check.sh
+nano ~/docker/maintenance/weekly-check.sh
 ```
 
 ```bash
@@ -698,7 +712,7 @@ echo "Weekly check completed at $(date)"
 Create a complete health check script:
 
 ```bash
-nano ~/docker/health-check.sh
+nano ~/docker/maintenance/health-check.sh
 ```
 
 **Add this content:**
@@ -845,19 +859,15 @@ echo ""
 #############################################
 echo -e "${BLUE}[5/7] Recent Error Log Check${NC}"
 
-error_count=$(docker compose logs --since 1h 2>&1 | grep -i "error\|critical\|fatal" | wc -l)
+error_count=$(docker compose logs --since 12h 2>&1 | grep -i "error\|critical\|fatal" | wc -l)
 
-if [ "$error_count" -gt 10 ]; then
-    echo -e "${RED}✗ Found $error_count errors in last hour${NC}"
+if [ "$error_count" -gt 0 ]; then
+    echo -e "${RED}✗ Found $error_count errors in last 12 hours${NC}"
     echo "Recent errors:"
-    docker compose logs --since 1h 2>&1 | grep -i "error\|critical\|fatal" | tail -5
+    docker compose logs --since 12h 2>&1 | grep -i "error\|critical\|fatal" | tail -n "$error_count"
     ((ISSUES++))
-elif [ "$error_count" -gt 0 ]; then
-    echo -e "${YELLOW}⚠ Found $error_count errors in last hour${NC}"
-    echo "Recent errors:"
-    docker compose logs --since 1h 2>&1 | grep -i "error\|critical\|fatal" | tail -3
 else
-    echo -e "${GREEN}✓ No errors found in last hour${NC}"
+    echo -e "${GREEN}✓ No errors found in last 12 hours${NC}"
 fi
 echo ""
 
@@ -917,7 +927,7 @@ else
 fi
 
 # Check DNS resolution
-if nslookup google.com > /dev/null 2>&1; then
+if getent hosts google.com > /dev/null 2>&1; then
     echo -e "${GREEN}✓${NC} DNS resolution working"
 else
     echo -e "${RED}✗${NC} DNS resolution failed"
@@ -965,7 +975,7 @@ if [ "$ISSUES" -gt 0 ]; then
     echo "1. Review issues listed above"
     echo "2. Check detailed logs: docker compose logs"
     echo "3. Check disk space: df -h && docker system df"
-    echo "4. Create backup if needed: ~/docker/backup.sh"
+    echo "4. Create backup if needed: ~/docker/maintenance/backup.sh"
     echo "5. Contact administrator if issues persist"
 fi
 
@@ -975,7 +985,7 @@ exit $exit_code
 Make it executable:
 
 ```bash
-chmod +x ~/docker/health-check.sh
+chmod +x ~/docker/maintenance/health-check.sh
 ```
 
 ---
@@ -985,7 +995,7 @@ chmod +x ~/docker/health-check.sh
 ### Basic Health Check
 
 ```bash
-~/docker/health-check.sh
+~/docker/maintenance/health-check.sh
 ```
 
 ### Example Output - Healthy System
@@ -995,36 +1005,38 @@ chmod +x ~/docker/health-check.sh
       Docker Environment Health Check
 ==========================================
 
-Check started at: 2024-01-15 14:30:25
+Check started at: 2026-01-07 12:03:00
 
 [1/7] Docker Service Status
 ✓ Docker is running
 
 [2/7] System Resources
-CPU Load Average: 0.45
-Memory Usage: 1847MB / 3934MB (47%) ✓
-Disk Usage: 8.2G / 24G (35%) ✓
-Docker Storage: 3.2GB
+CPU Load Average: 0.00
+Memory Usage: 1599MB / 3915MB (41%) ✓
+Disk Usage: 7.6G / 38G (22%) ✓
+Docker Storage: 5.42GB
 
 [3/7] Container Status
-✓ traefik: Running
-✓ n8n: Running
 ✓ db_core: Running
-✓ uptime-kuma: Running
+✓ postgres: Running
+✓ n8n: Running
+✓ pgadmin: Running
+✓ phpmy: Running
+✓ traefik: Running
 All containers are running
 
 [4/7] Container Health Checks
 ✓ No unhealthy containers
 
 [5/7] Recent Error Log Check
-✓ No errors found in last hour
+✓ No errors found in last 12 hours
 
 [6/7] Backup Status
-Latest backup: n8n_data-20240115-020000.tar.gz
-Size: 45M
-Date: 2024-01-15
+Latest backup: docker-compose-20260107-045503.tar.gz
+Size: 4.0K
+Date: 2026-01-07
 ✓ Backup is recent (0d old)
-Total backups: 12
+Total backups: 7
 
 [7/7] Network & Service Checks
 ✓ Internet connectivity
@@ -1038,70 +1050,8 @@ Total backups: 12
 
 ✓ All checks passed - System is healthy!
 
-Check completed at: 2024-01-15 14:30:32
-```
+Check completed at: 2026-01-07 12:03:03
 
-### Example Output - Issues Found
-
-```
-==========================================
-      Docker Environment Health Check
-==========================================
-
-Check started at: 2024-01-15 14:30:25
-
-[1/7] Docker Service Status
-✓ Docker is running
-
-[2/7] System Resources
-CPU Load Average: 2.45
-Memory Usage: 3456MB / 3934MB (88%) ✗ HIGH
-Disk Usage: 21G / 24G (88%) ✗ HIGH
-Docker Storage: 12.5GB
-
-[3/7] Container Status
-✓ traefik: Running
-✗ n8n: Exited (1) 5 minutes ago
-✓ db_core: Running
-✓ uptime-kuma: Running
-
-[4/7] Container Health Checks
-✓ No unhealthy containers
-
-[5/7] Recent Error Log Check
-✗ Found 15 errors in last hour
-Recent errors:
-Error: Cannot connect to database
-Fatal: Out of memory
-Error: Connection refused
-
-[6/7] Backup Status
-Latest backup: n8n_data-20240110-020000.tar.gz
-Size: 45M
-Date: 2024-01-10
-✗ Backup is 5 days old!
-Total backups: 8
-
-[7/7] Network & Service Checks
-✓ Internet connectivity
-✓ DNS resolution working
-✓ Port 80 is listening
-✓ Port 443 is listening
-
-==========================================
-              Summary
-==========================================
-
-✗ Found 4 issue(s) - Action required!
-
-Check completed at: 2024-01-15 14:30:32
-
-Recommended actions:
-1. Review issues listed above
-2. Check detailed logs: docker compose logs
-3. Check disk space: df -h && docker system df
-4. Create backup if needed: ~/docker/backup.sh
-5. Contact administrator if issues persist
 ```
 
 ---
@@ -1115,13 +1065,13 @@ Add to crontab for automated daily health checks:
 crontab -e
 
 # Add this line for daily health check at 9 AM
-0 9 * * * ~/docker/health-check.sh > ~/docker/health-check.log 2>&1
+0 9 * * * ~/docker/maintenance/health-check.sh > ~/docker/maintenance/health-check.log 2>&1
 ```
 
 Review the log:
 
 ```bash
-cat ~/docker/health-check.log
+cat ~/docker/maintenance/health-check.log
 ```
 
 ---
@@ -1139,7 +1089,7 @@ You can use this in other scripts:
 #!/bin/bash
 
 # Run health check before performing maintenance
-if ~/docker/health-check.sh; then
+if ~/docker/maintenance/health-check.sh; then
     echo "System healthy, proceeding with maintenance..."
     # Your maintenance tasks here
 else
@@ -1288,4 +1238,4 @@ docker compose logs --tail=50         # View last 50 lines only
 
 ---
 
-*Last Updated: 29/12/2025*
+*Last Updated: [07/01/2026]*

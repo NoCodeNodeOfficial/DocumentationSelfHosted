@@ -86,7 +86,7 @@ traefik   traefik
 ```bash
 # Run your backup script seen in [06 - Backup & Recovery]
 cd ~/docker
-./backup.sh
+./maintenance/backup.sh
 
 # Verify backup was created
 ls -lh backups/ | head -5
@@ -126,12 +126,12 @@ Or visit: https://hub.docker.com/r/n8nio/n8n/tags
 
 ### Method 1: Update to Latest Version
 
-> 💡 **TIP:** Use `latest` tag for automatic updates to newest stable version.
+> 💡 **TIP:** In docker-compose.yml use `latest` tag for automatic updates to the newest stable version.
 
 **Step 1: Backup (if not done already)**
 ```bash
 cd ~/docker
-./backup.sh
+./maintenance/backup.sh
 ```
 
 **Step 2: Update docker-compose.yml**
@@ -142,7 +142,7 @@ nano docker-compose.yml
 Change n8n image line:
 ```yaml
 # FROM:
-image: n8nio/n8n:1.19.4
+image: n8nio/n8n:2.2.4
 
 # TO:
 image: n8nio/n8n:latest
@@ -213,7 +213,7 @@ nano docker-compose.yml
 Change to specific version:
 ```yaml
 # Specific version (recommended for production)
-image: n8nio/n8n:2.1.4
+image: n8nio/n8n:2.2.4
 ```
 
 **Step 3: Apply update**
@@ -229,7 +229,7 @@ docker compose logs n8n --tail=30
 Create a reusable update script:
 
 ```bash
-nano ~/docker/update-n8n.sh
+nano ~/docker/maintenance/update-n8n.sh
 ```
 
 Paste this content:
@@ -239,19 +239,56 @@ Paste this content:
 
 set -e
 
+show_usage() {
+    echo "Usage: $0 [VERSION] [DOCKER_DIR]"
+    echo ""
+    echo "Parameters:"
+    echo "  VERSION     - n8n version (default: latest)"
+    echo "                Examples: latest, 1.20.0, 1.20, 1"
+    echo "  DOCKER_DIR  - Path to docker directory (default: ~/docker)"
+    echo ""
+    echo "Examples:"
+    echo "  $0                        # Update to latest"
+    echo "  $0 1.20.0                 # Update to version 1.20.0"
+    echo "  $0 latest ~/docker        # Update to latest in custom dir"
+    echo "  $0 1.20.0 /opt/n8n-docker # Update to 1.20.0 in custom dir"
+    exit 1
+}
+
+# Parse parameters
+VERSION="${1:-latest}"
+DOCKER_DIR="${2:-$HOME/docker}"
+COMPOSE_FILE="$DOCKER_DIR/docker-compose.yml"
+
 echo "=== n8n Update Script ==="
 echo ""
 
-# Check if version specified
-if [ -z "$1" ]; then
-    VERSION="latest"
-    echo "📦 Updating to latest version"
-else
-    VERSION="$1"
-    echo "📦 Updating to version: $VERSION"
+# Validate VERSION format
+if [[ ! "$VERSION" =~ ^(latest|[0-9]+(\.[0-9]+)?(\.[0-9]+)?)$ ]]; then
+    echo "❌ Invalid version format: $VERSION"
+    echo "   Version must be 'latest' or match pattern: 1 or 1.1 or 1.1.1"
+    echo ""
+    show_usage
 fi
 
+# Validate DOCKER_DIR exists
+if [ ! -d "$DOCKER_DIR" ]; then
+    echo "❌ Docker directory not found: $DOCKER_DIR"
+    echo ""
+    show_usage
+fi
+
+# Validate docker-compose.yml exists
+if [ ! -f "$COMPOSE_FILE" ]; then
+    echo "❌ docker-compose.yml not found: $COMPOSE_FILE"
+    echo ""
+    show_usage
+fi
+
+echo "📦 Updating to version: $VERSION"
+echo "📁 Docker directory: $DOCKER_DIR"
 echo ""
+
 read -p "⚠️  Have you created a backup? (yes/no): " backup_confirm
 
 if [ "$backup_confirm" != "yes" ]; then
@@ -259,46 +296,75 @@ if [ "$backup_confirm" != "yes" ]; then
     exit 1
 fi
 
+# Change to docker directory
+cd "$DOCKER_DIR"
+
 echo ""
-echo "1️⃣  Stopping n8n..."
+echo "1️⃣  Updating docker-compose.yml to version $VERSION..."
+sed -i "s|docker\.n8n\.io/n8nio/n8n:.*|docker.n8n.io/n8nio/n8n:${VERSION}|" "$COMPOSE_FILE"
+echo "   ✓ Updated image tag in docker-compose.yml"
+
+echo ""
+echo "2️⃣  Stopping n8n..."
 docker compose stop n8n
 
-echo "2️⃣  Pulling new image..."
+echo ""
+echo "3️⃣  Pulling new image..."
 docker compose pull n8n
 
-echo "3️⃣  Starting n8n with new version..."
+echo ""
+echo "4️⃣  Starting n8n with new version..."
 docker compose up -d n8n
 
-echo "4️⃣  Waiting for n8n to start..."
+echo ""
+echo "5️⃣  Waiting for n8n to start..."
 sleep 10
 
-echo "5️⃣  Checking version..."
+echo ""
+echo "6️⃣  Checking n8n status..."
+status=$(docker compose ps n8n --format json | grep -o '"State":"[^"]*"' | cut -d'"' -f4)
+
+if [ "$status" = "running" ]; then
+    echo "   ✅ n8n is running"
+else
+    echo "   ❌ n8n status: $status"
+    echo ""
+    echo "Recent logs:"
+    docker compose logs n8n --tail=20
+    exit 1
+fi
+
+echo ""
+echo "7️⃣  Checking version..."
 docker compose exec n8n n8n --version
 
 echo ""
-echo "6️⃣  Recent logs:"
+echo "8️⃣  Recent logs:"
 docker compose logs n8n --tail=20
 
 echo ""
-echo "✅ Update completed!"
+echo "✅ Update completed successfully!"
 echo "🌐 Test your n8n instance at your URL"
 echo ""
 echo "If there are issues, rollback with:"
-echo "   cd ~/docker && docker compose down n8n"
-echo "   # Edit docker-compose.yml to previous version"
+echo "   cd $DOCKER_DIR"
+echo "   sed -i \"s|docker\.n8n\.io/n8nio/n8n:.*|docker.n8n.io/n8nio/n8n:<OLD_VERSION>|\" docker-compose.yml"
 echo "   docker compose up -d n8n"
 ```
 
 Make executable and use:
 
 ```bash
-chmod +x ~/docker/update-n8n.sh
+chmod +x ~/docker/maintenance/update-n8n.sh
 
 # Update to latest
 ./update-n8n.sh
 
 # Update to specific version
 ./update-n8n.sh 2.1.4
+
+# Update to specific version with a docker file not in its usual directory
+./update-n8n.sh 2.1.4 /opt/random/folder
 ```
 
 ---
@@ -313,7 +379,7 @@ chmod +x ~/docker/update-n8n.sh
 cd ~/docker
 
 # 1. Backup first!
-./backup.sh
+./maintenance/backup.sh
 
 # 2. Pull all new images
 docker compose pull
@@ -357,10 +423,10 @@ cd ~/docker
 docker compose exec db_core mysql -V
 
 # Example output:
-mysql  Ver 8.4.7 for Linux on x86_64 (MySQL Community Server - GPL)
+# mysql  Ver 8.4.7 for Linux on x86_64 (MySQL Community Server - GPL)
 
 # 2. Backup database first!
-./backup.sh
+./maintenance/backup.sh
 
 # 3. Update docker-compose.yml if needed
 nano docker-compose.yml
@@ -384,11 +450,11 @@ sleep 15
 docker compose exec db_core mysql -u root -p -e "SELECT VERSION();"
 
 # Example output:
-+-----------+
-| VERSION() |
-+-----------+
-| 8.4.7     |
-+-----------+
+# +-----------+
+# | VERSION() |
+# +-----------+
+# | 8.4.7     |
+# +-----------+
 ```
 
 **Example: Update Traefik**
@@ -433,10 +499,11 @@ docker compose up -d phpmyadmin
 
 ```
 
-### Update Script for All Services
+### Update Script for All Services  
+Works only at the condition "latest" is set on the image (not recommended)
 
 ```bash
-nano ~/docker/update-all.sh
+nano ~/docker/maintenance/update-all.sh
 ```
 
 ```bash
@@ -446,6 +513,8 @@ set -e
 
 echo "=== Docker Services Update Script ==="
 echo ""
+
+cd ~/docker
 
 # Confirmation
 read -p "⚠️  This will update ALL services. Continue? (yes/no): " confirm
@@ -502,8 +571,8 @@ echo "If issues occur, see rollback procedures in the documentation."
 Make executable:
 
 ```bash
-chmod +x ~/docker/update-all.sh
-./update-all.sh
+chmod +x ~/docker/maintenance/update-all.sh
+~/docker/maintenance/update-all.sh
 ```
 
 ---
@@ -629,7 +698,7 @@ sudo apt upgrade -y --only-upgrade $(apt list --upgradable 2>/dev/null | grep se
 ### OS Update Script
 
 ```bash
-nano ~/os-update.sh
+nano ~/docker/maintenance/os-update.sh
 ```
 
 ```bash
@@ -640,7 +709,7 @@ echo ""
 
 # Check if running as root or with sudo
 if [ "$EUID" -ne 0 ]; then 
-    echo "❌ Please run with sudo: sudo ./os-update.sh"
+    echo "❌ Please run with sudo: sudo ~/docker/maintenance/os-update.sh"
     exit 1
 fi
 
@@ -702,8 +771,8 @@ echo "Current kernel: $(uname -r)"
 Make executable:
 
 ```bash
-chmod +x ~/os-update.sh
-sudo ./os-update.sh
+chmod +x ~/docker/maintenance/os-update.sh
+sudo ~/docker/maintenance/os-update.sh
 ```
 
 ---
@@ -767,14 +836,14 @@ cd ~/docker
 # 1. Stop n8n
 docker compose down n8n
 
-# 2. Remove current n8n data (only if you have a backup)
+# 2. Remove current n8n data (ONLY IF YOU HAVE A BACKUP)
 docker volume rm docker_n8n_data
 
 # 3. Restore from backup (use your backup filename)
 docker run --rm \
   -v docker_n8n_data:/data \
   -v $(pwd)/backups:/backup \
-  ubuntu bash -c "cd /data && tar xzf /backup/n8n-REPLACE_BY_YOUR_VERSION.tar.gz"
+  ubuntu bash -c "cd /data && tar xzf /backup/n8n_data-REPLACE_BY_YOUR_VERSION.tar.gz"
 
 # 4. Revert docker-compose.yml to old version
 nano docker-compose.yml
@@ -795,7 +864,7 @@ docker compose logs n8n --tail=50
 cd ~/docker
 
 # 1. Stop all services using the database
-docker compose stop n8n # Stop anything using DB
+docker compose stop phpmy # Stop anything using DB
 
 # 2. Stop database
 docker compose stop db_core
@@ -808,7 +877,7 @@ docker volume rm docker_mysql_data
 docker run --rm \
   -v docker_mysql_data:/data \
   -v $(pwd)/backups:/backup \
-  ubuntu bash -c "cd /data && tar xzf /backup/mysql-REPLACE_BY_YOUR_VERSION.tar.gz"
+  ubuntu bash -c "cd /data && tar xzf /backup/mysql_data-REPLACE_BY_YOUR_VERSION.tar.gz"
 
 # 5. Start database
 docker compose up -d db_core
@@ -823,145 +892,23 @@ docker compose exec db_core mysql -u root -p${MYSQL_ROOT_PWD} -e "SHOW DATABASES
 docker compose up -d
 ```
 
-### Rolling Back All Services
-
-Complete rollback to previous state:
-
-```bash
-cd ~/docker
-
-# 1. Stop everything
-docker compose down
-
-# 2. Restore docker-compose.yml from backup
-cp backups/docker-compose-REPLACE_BY_YOUR_VERSION.tar.gz .
-tar xzf docker-compose-REPLACE_BY_YOUR_VERSION.tar.gz
-
-# 3. Restore all volumes
-# n8n
-docker volume rm docker_n8n_data
-docker run --rm -v docker_n8n_data:/data -v $(pwd)/backups:/backup \
-  ubuntu bash -c "cd /data && tar xzf /backup/n8n-REPLACE_BY_YOUR_VERSION.tar.gz"
-
-# MySQL
-docker volume rm docker_mysql_data
-docker run --rm -v docker_mysql_data:/data -v $(pwd)/backups:/backup \
-  ubuntu bash -c "cd /data && tar xzf /backup/mysql-REPLACE_BY_YOUR_VERSION.tar.gz"
-
-# Traefik
-docker volume rm docker_traefik_letsencrypt
-docker run --rm -v docker_traefik_letsencrypt:/data -v $(pwd)/backups:/backup \
-  ubuntu bash -c "cd /data && tar xzf /backup/traefik-REPLACE_BY_YOUR_VERSION.tar.gz"
-
-# 4. Start everything
-docker compose up -d
-
-# 5. Monitor startup
-docker compose logs -f
-```
-
-### Rollback Script
-
-```bash
-nano ~/docker/rollback.sh
-```
-
-```bash
-#!/bin/bash
-
-set -e
-
-echo "=== Docker Services Rollback Script ==="
-echo ""
-echo "⚠️  WARNING: This will restore from backup!"
-echo "Any data created since the backup will be LOST!"
-echo ""
-
-# List available backups
-echo "Available backups:"
-ls -lht backups/*.tar.gz | head -10
-
-echo ""
-read -p "Enter backup date (YYYYMMDD-HHMMSS, e.g., 20240115-143000): " backup_date
-
-if [ -z "$backup_date" ]; then
-    echo "❌ No backup date provided"
-    exit 1
-fi
-
-# Verify backup files exist
-if [ ! -f "backups/n8n-${backup_date}.tar.gz" ]; then
-    echo "❌ n8n backup not found: backups/n8n-${backup_date}.tar.gz"
-    exit 1
-fi
-
-echo ""
-read -p "Rollback n8n, database, or both? (n8n/db/both): " rollback_type
-
-echo ""
-read -p "⚠️  Are you ABSOLUTELY SURE? Type 'YES' to continue: " confirm
-
-if [ "$confirm" != "YES" ]; then
-    echo "❌ Rollback cancelled"
-    exit 0
-fi
-
-echo ""
-echo "🔄 Starting rollback..."
-
-if [ "$rollback_type" == "n8n" ] || [ "$rollback_type" == "both" ]; then
-    echo "1️⃣  Rolling back n8n..."
-    docker compose stop n8n
-    docker volume rm docker_n8n_data
-    docker run --rm -v docker_n8n_data:/data -v $(pwd)/backups:/backup \
-      ubuntu bash -c "cd /data && tar xzf /backup/n8n-${backup_date}.tar.gz"
-    docker compose up -d n8n
-fi
-
-if [ "$rollback_type" == "db" ] || [ "$rollback_type" == "both" ]; then
-    echo "2️⃣  Rolling back database..."
-    docker compose stop n8n uptime-kuma db_core
-    docker volume rm docker_mysql_data
-    docker run --rm -v docker_mysql_data:/data -v $(pwd)/backups:/backup \
-      ubuntu bash -c "cd /data && tar xzf /backup/mysql-${backup_date}.tar.gz"
-    docker compose up -d db_core
-    sleep 20
-    docker compose up -d n8n uptime-kuma
-fi
-
-echo ""
-echo "⏳ Waiting for services to start..."
-sleep 15
-
-echo ""
-echo "📋 Service status:"
-docker compose ps
-
-echo ""
-echo "✅ Rollback completed!"
-echo "Please verify your services are working correctly."
-```
-
-Make executable:
-
-```bash
-chmod +x ~/docker/rollback.sh
-./rollback.sh
-```
-
----
+### Rollback Script  
+The best way to rollback is simply to use the [restore.sh script](06-backup-recovery.md) to restore the data and using the principle seen above [Rolling Back n8n](#rolling-back-n8n) to pull the anterior version you're needing.
 
 ## Update Schedule & Strategy
 
 ### Recommended Update Frequency
 
-| Component | Frequency | Priority | Best Time |
-|-----------|-----------|----------|-----------|
-| **n8n** | Monthly | High | After major release stabilizes (wait 1-2 weeks) |
-| **MySQL** | Quarterly | Medium | During maintenance window |
-| **Traefik** | Quarterly | Medium | During maintenance window |
+| Component       | Frequency | Priority | Best Time |
+|-----------------|-----------|----------|-----------|
+| **n8n**         | Monthly | High     | After major release stabilizes (wait 1-2 weeks) |
+| **MySQL**       | Quarterly | Medium   | During maintenance window |
+| **PhpMyAdmin**  | Quarterly | Low      | During maintenance window |
+| **PostgreSQL**  | Quarterly | Medium   | During maintenance window |
+| **PGadmin**     | Quarterly | Low      | During maintenance window |
+| **Traefik**     | Quarterly | Medium   | During maintenance window |
 | **OS Security** | Weekly | Critical | Automated or weekly check |
-| **OS Full** | Monthly | High | After testing |
+| **OS Full**     | Monthly | High     | After testing |
 
 ### Update Strategy
 
@@ -1033,7 +980,7 @@ nano ~/monthly-update-checklist.md
 Setup update checking:
 
 ```bash
-nano ~/check-updates.sh
+nano ~/docker/maintenance/check-updates.sh
 ```
 
 ```bash
@@ -1068,7 +1015,7 @@ echo ""
 echo "🔧 n8n Version:"
 current=$(docker compose exec -T n8n n8n --version 2>/dev/null)
 echo "   Current: $current"
-latest=$(curl -s https://api.github.com/repos/n8n-io/n8n/releases/latest | jq -r .tag_name | sed 's/n8n@//')
+latest=$(curl -s https://api.github.com/repos/n8n-io/n8n/releases/latest | grep -oP '"tag_name":\s*"\K[^"]+' | sed 's/n8n@//')
 echo "   Latest: $latest"
 
 if [ "$current" != "$latest" ]; then
@@ -1088,7 +1035,7 @@ crontab -e
 
 # Add:
 # Weekly update check every Monday at 9 AM
-0 9 * * 1 /home/USERNAME/check-updates.sh >> /home/USERNAME/update-check.log 2>&1
+0 9 * * 1 /home/USERNAME/docker/maintenance/check-updates.sh >> /home/USERNAME/docker/maintenance/update-check.log 2>&1
 ```
 
 ---
@@ -1107,7 +1054,7 @@ df -h
 docker system prune -a
 
 # Try pulling individual images
-docker pull n8nio/n8n:latest
+docker pull n8nio/n8n:2.2.4
 
 # Check Docker daemon
 sudo systemctl status docker
@@ -1139,8 +1086,8 @@ docker compose up container-name
 # Check n8n logs
 docker compose logs n8n | grep -i "migration\|database"
 
-# Check database is running
-docker compose exec db_core mysql -u root -p -e "SHOW DATABASES;"
+# Check database is running (Makes senses only if n8n is setup to use postgres database engine)
+docker compose exec postgres psql -U n8n_user -d n8n -c "\l"
 
 # If migration stuck, may need manual intervention
 # Contact n8n support or check GitHub issues
@@ -1273,4 +1220,4 @@ docker compose up -d n8n
 
 ---
 
-*Last Updated: 29/12/2025*
+*Last Updated: [07/01/2026]*

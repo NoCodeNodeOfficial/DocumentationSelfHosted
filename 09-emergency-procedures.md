@@ -424,11 +424,13 @@ docker compose stop
 
 **Expected output:**
 ```
-[+] Stopping 4/4
+[+] Stopping 6/6
  ✔ Container n8n       Stopped
  ✔ Container traefik   Stopped
  ✔ Container db_core   Stopped
  ✔ Container phpmy     Stopped
+ ✔ Container postgres  Stopped
+ ✔ Container pgadmin   Stopped
 ```
 
 #### Step 3: Check Disk Space
@@ -464,64 +466,44 @@ du -sh ~/docker/backups/*.tar.gz
 ```
 4.0K	/home/USERNAME/docker/backups/docker-compose-20251230-051614.tar.gz
 4.0K	/home/USERNAME/docker/backups/docker-compose-20251230-051934.tar.gz
-7.5M	/home/USERNAME/docker/backups/mysql-20251230-051441.tar.gz
-7.5M	/home/USERNAME/docker/backups/mysql-20251230-051934.tar.gz
-360K	/home/USERNAME/docker/backups/n8n-20251230-051524.tar.gz
-360K	/home/USERNAME/docker/backups/n8n-20251230-051934.tar.gz
-24K	    /home/USERNAME/docker/backups/traefik-20251230-051535.tar.gz
-24K	    /home/USERNAME/docker/backups/traefik-20251230-051934.tar.gz
+7.5M	/home/USERNAME/docker/backups/mysql_data-20251230-051441.tar.gz
+7.5M	/home/USERNAME/docker/backups/mysql_data-20251230-051934.tar.gz
+360K	/home/USERNAME/docker/backups/n8n_data-20251230-051524.tar.gz
+360K	/home/USERNAME/docker/backups/n8n_data-20251230-051934.tar.gz
+24K	    /home/USERNAME/docker/backups/traefik_letsencrypt-20251230-051535.tar.gz
+24K	    /home/USERNAME/docker/backups/traefik_letsencrypt-20251230-051934.tar.gz
 ```
 
 > ⚠️ **IMPORTANT:** If all backups are 0 bytes or very small, contact your administrator immediately!
 
-#### Step 5: Attempt Database Repair for n8n (if MySQL is selected has the database engine. default is SQLite) 
+#### Step 5: Attempt Database Repair for n8n (if Postgres is selected has the database engine. default is SQLite) 
 
 **Only if corruption is minor:**
 
 ```bash
-# Start only MySQL
+# Start only Postgres
 cd ~/docker
-docker compose up -d db_core
+docker compose up -d postgres
 
-# Wait 30 seconds, then access MySQL
-docker compose exec db_core bash
+# Wait 30 seconds, then access Postgres
+docker compose exec postgres bash
 
 # Inside container
-mysql -u root -p
-# Enter password when prompted
+psql -U n8n_user -d n8n -c "\l"
 
-# Check databases
-SHOW DATABASES;
 
-# Select n8n database
-USE n8n;
+# List all table within n8n database
+psql -U n8n_user -d n8n -c "\dt+"
 
-# Check tables
-SHOW TABLES;
+# Repair the database (minor corruption)
+psql -U n8n_user -d n8n -c "REINDEX DATABASE n8n;"
+psql -U n8n_user -d n8n -c "VACUUM ANALYZE;"
 
-# Repair tables if needed
-REPAIR TABLE workflow_entity;
-REPAIR TABLE execution_entity;
-```
-
-**Expected output if successful:**
-```
-+---------------------------+--------+----------+----------+
-| Table                     | Op     | Msg_type | Msg_text |
-+---------------------------+--------+----------+----------+
-| n8n.workflow_entity       | repair | status   | OK       |
-+---------------------------+--------+----------+----------+
-```
-
-Exit MySQL:
-```bash
-exit
-exit
 ```
 
 #### Step 6: Restore from Backup
 
-**If repair doesn't work, restore from backup:** (refer to 06-backup-recovery restore.sh script)  
+**If repair doesn't work, restore from backup:** (refer to [06-backup-recovery](06-backup-recovery.md) restore.sh script)  
 > ⚠️ **WARNING:** The script is only applicable for docker volumes. Do not use it to restore docker files.  
 
 ```bash
@@ -532,7 +514,7 @@ docker compose down
 # Restore from most recent backup of the selected service you picked to restore.  
 
 cd ~
-./restore.sh backups/backup-YYYYMMDD-HHMMSS.tar.gz
+~/docker/maintenance/restore.sh postgres_data ~/docker/backups/postgres_data-20260107-024827.tar.gz
 
 # Follow the prompts
 # This will restore your data and restart services
@@ -568,13 +550,13 @@ After recovery, implement these safeguards:
 crontab -e
 
 # Add this line if not present:
-0 2 * * * /home/USERNAME/backup.sh
+0 2 * * * /home/USERNAME/docker/maintenance/backup.sh
 
 # Test backup script
-~/backup.sh
+~/docker/maintenance/backup.sh
 
 # Verify backup was created
-ls -lh ~/backups/ | tail -1
+ls -lh ~/docker/backups/ | tail -1
 ```
 
 ---
@@ -722,22 +704,11 @@ nano ~/.ssh/authorized_keys
 
 ```bash
 # Change n8n admin password via the web interface
-# Navigate to: Settings → Users → Change Password
+# Navigate to: Settings → Personal → Change Password
 ```
 
-**Change database password:**
-
-```bash
-cd ~/docker
-nano .env
-
-# Update these variables with new, strong passwords
-MYSQL_ROOT_PASSWORD=new_strong_password_here
-MYSQL_PASSWORD=new_strong_password_here
-
-# Restart MySQL with new password
-docker compose up -d mysql
-```
+**Change database password:**  
+Refer to [03 Security access](03-security-access.md)
 
 #### Step 5: Kill Suspicious Processes
 
@@ -810,7 +781,7 @@ PubkeyAuthentication yes
 sudo systemctl restart ssh
 ```
 
-**Enable fail2ban:**
+**Enable fail2ban:** (Should already be enabled)
 
 ```bash
 # Install fail2ban
@@ -980,4 +951,4 @@ sudo reboot
 
 ---
 
-*Last Updated: 02/01/2026*
+*Last Updated: [07/01/2026]*

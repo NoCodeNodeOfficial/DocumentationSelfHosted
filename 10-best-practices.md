@@ -53,7 +53,7 @@ exit
 
 ```bash
 # 1. Check system health
-~/docker/health-check.sh
+~/docker/maintenance/health-check.sh
 
 # 2. Review backup status
 ls -lh ~/docker/backups/ | tail -10
@@ -266,7 +266,7 @@ docker system df
 
 ```bash
 # Prevent logs from growing too large
-# Add to docker-compose.yml for each service:
+# Add to docker-compose.yml for each service: (already in place)
 
 logging:
   driver: "json-file"
@@ -387,7 +387,7 @@ Create `~/docker/CHANGELOG.md`:
 
 ### Document Your Setup
 
-Create `~/docker/SETUP.md`:
+Create `~/docker/doc/SETUP.md`:
 
 ```markdown
 # Server Setup Documentation
@@ -417,7 +417,7 @@ Create `~/docker/SETUP.md`:
 
 ```bash
 # Keep useful commands documented
-nano ~/docker/useful-commands.txt
+nano ~/docker/maintenance/useful-commands.txt
 
 # Example content:
 # Backup all volumes
@@ -469,8 +469,8 @@ docker compose restart traefik
 docker compose logs traefik
 
 # Database connection issues
-docker compose restart mysql
-docker compose logs mysql
+docker compose restart db_core
+docker compose logs db_core
 ```
 
 ### Debug Mode
@@ -503,7 +503,7 @@ docker exec -it n8n /bin/sh
 docker compose pull && docker compose up -d
 
 # RIGHT
-~/docker/backup.sh
+~/docker/maintenance/backup.sh
 docker compose pull && docker compose up -d
 docker compose logs
 ```
@@ -671,20 +671,26 @@ docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 ```bash
 # Keep your home directory clean
 ~/
-├── docker/              # All Docker configs
-│   ├── docker-compose.yml
-│   ├── backup.sh
-│   ├── restore.sh
-│   ├── backups/         # Backup files
-│   ├── CHANGELOG.md     # Track changes
-│   └── SETUP.md         # Document setup
-└── .ssh/                # SSH keys
+├── docker/                 # All Docker configs
+│   ├── maintenance/        # All the script present in this documentation
+│   │   ├── restore.sh      # Restore a backup
+│   │   ├── backup.sh       # Backup your containers
+│   │   └── etc...
+│   ├── doc/                # Where you store your documentation
+│   │   ├── SETUP.md        # Document the updates and installations
+│   │   ├── CHANGELOG.md    # Document the changes
+│   │   └── README.md       # Document the important notes
+│   ├── backups/            # Backup files
+│   ├── docker-compose.yml  # The docker configuration file
+│   ├── CHANGELOG.md        # Track changes
+│   └── SETUP.md            # Document setup
+└── .ssh/                   # SSH keys
 ```
 
 ### Keep Learning
 
 - Read error messages carefully
-- Google error messages (often someone else solved it)
+- Google, ChatGPT error messages (often someone else solved it)
 - Check official documentation
 - Ask your administrator when unsure
 - Document solutions for future reference
@@ -710,4 +716,4 @@ docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
 ---
 
-*Last Updated: 02/01/2026*
+*Last Updated: [07/01/2026]*

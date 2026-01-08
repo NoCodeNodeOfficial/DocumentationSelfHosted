@@ -114,7 +114,6 @@ All maintenance scripts are located in `~/docker/maintenance/`:
 | Check updates      | `~/docker/maintenance/check-updates.sh`   | Look for system update                   |
 | Cleaning docker    | `~/docker/maintenance/docker-cleanup.sh`   | Clean all the unused docker files        |
 | Update OS          | `~/docker/maintenance/os-updates.sh`   | Process OS update                        |
-| Service rollback   | `~/docker/maintenance/rollback.sh`   | Rollback a service after a failed update |
 | Update everything  | `~/docker/maintenance/update-all.sh`   | Update all the services                  |
 | Update one service | `~/docker/maintenance/update-n8n.sh`   | Update only one service                  |
 | Weekly check       | `~/docker/maintenance/weekly-check.sh`   | Do the system weekly check               |

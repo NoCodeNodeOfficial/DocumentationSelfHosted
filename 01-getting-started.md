@@ -116,6 +116,20 @@ Let's make sure all your web services are accessible before diving into the comm
 
 ---
 
+### 1.4 Access PgAdmin dashboard
+
+1. Navigate to: `https://pgadmin.yourdomain.website` You can find this URL in the PDF : SERVICE PGADMIN > Pgadmin URL
+2. Enter basic authentication credentials (from your PDF)
+3. You should see the Pgadmin login dashboard.
+4. Authenticate with your email and password (from your PDF)
+
+**Expected Result:**
+- ✅ You are on Pgadmin dashboard and can add a new database server
+
+<img src="images/pgadmin_dashboard.png" alt="pgadmin dashboard" width="600"/>
+
+---
+
 ## Step 2: First SSH Connection
 
 Now let's connect to your server via SSH. If you haven't set up SSH yet, please refer to [02 - SSH Connection Guide](02-ssh-guide.md) first.
@@ -185,11 +199,13 @@ docker compose ps
 
 **Expected Output:**
 ```
-NAME                COMMAND                  SERVICE             STATUS              PORTS
-db_core   mysql:8.4                 "docker-entrypoint.s…"   db_core   4 days ago   Up 4 days   3306/tcp, 33060/tcp
-n8n       docker.n8n.io/n8nio/n8n   "tini -- /docker-ent…"   n8n       4 days ago   Up 4 days   127.0.0.1:5678->5678/tcp
-phpmy     phpmyadmin:5.2            "/docker-entrypoint.…"   phpmy     4 days ago   Up 4 days   80/tcp
-traefik   traefik                   "/entrypoint.sh --ap…"   traefik   4 days ago   Up 4 days   0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
+NAME       IMAGE                     COMMAND                  SERVICE    CREATED        STATUS             PORTS
+db_core    mysql:8.4                 "docker-entrypoint.s…"   db_core    11 hours ago   Up About an hour   3306/tcp, 33060/tcp
+n8n        docker.n8n.io/n8nio/n8n   "tini -- /docker-ent…"   n8n        11 hours ago   Up About an hour   127.0.0.1:5678->5678/tcp
+pgadmin    dpage/pgadmin4:9          "/entrypoint.sh"         pgadmin    11 hours ago   Up About an hour   80/tcp, 443/tcp
+phpmy      phpmyadmin:5.2            "/docker-entrypoint.…"   phpmy      11 hours ago   Up About an hour   80/tcp
+postgres   postgres:17               "docker-entrypoint.s…"   postgres   11 hours ago   Up About an hour   5432/tcp
+traefik    traefik                   "/entrypoint.sh --ap…"   traefik    11 hours ago   Up About an hour   0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
 ```
 
 > ✅ **All containers should show "Up"** - If any show "Restarting" or "Exited", see [11 - Troubleshooting Guide](11-troubleshooting.md)
@@ -203,6 +219,8 @@ traefik   traefik                   "/entrypoint.sh --ap…"   traefik   4 days 
 docker compose logs --tail=20 n8n
 docker compose logs --tail=20 db_core
 docker compose logs --tail=20 traefik
+docker compose logs --tail=20 pgadmin
+docker compose logs --tail=20 postgres
 
 # Check disk space
 df -h
@@ -232,7 +250,9 @@ Here's how your server is organized:
 ```
 /home/USERNAME/
 └── docker/                         # Main Docker setup folder
-   ├── docker-compose.yml           # Defines all services
+   ├── maintenance                  # All the scripts in this documentation can be found in this directory.
+   ├── backups                      # This folder will be created if you execute the backup.sh script.
+   ├── docker-compose.yml           # Defines all the docker servicess
    ├── .env                         # Environment variables & secrets
    └── my.cnf                       # MySQL custom configuration file
 
@@ -256,6 +276,8 @@ local     docker_mysql_data
 local     docker_n8n_data
 local     docker_n8n_files
 local     docker_traefik_letsencrypt
+local     docker_pgadmin_data
+local     docker_postgres_data
 ```
 
 **To inspect a volume's location:**
@@ -284,14 +306,15 @@ docker volume prune
 ```
 ### Database Configuration
 - **Default:** n8n uses SQLite (file-based, no MySQL needed)
-- **Optional:** To use MySQL instead, uncomment (remove #) the MySQL section in docker-compose.yml:
+- **Optional:** To use Postgres instead, uncomment (remove #) the Postgres section in docker-compose.yml:
 ```
-# DB_TYPE: mysqldb
-# DB_MYSQLDB_HOST: db_core
-# DB_MYSQLDB_PORT: 3306
-# DB_MYSQLDB_DATABASE: ${MYSQL_DATABASE}
-# DB_MYSQLDB_USER: ${MYSQL_USER}
-# DB_MYSQLDB_PASSWORD: ${MYSQL_USER_PWD}
+# PostgreSQL (uncomment these 6 lines if switching to PostgreSQL)
+# DB_TYPE: postgresdb
+# DB_POSTGRESDB_HOST: postgres
+# DB_POSTGRESDB_PORT: 5432
+# DB_POSTGRESDB_DATABASE: ${POSTGRES_DB}
+# DB_POSTGRESDB_USER: ${POSTGRES_USER}
+# DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
 
 -> And comment the SQLITE parameter adding a # at the begining of the line.
 DB_SQLITE_POOL_SIZE: 3
@@ -325,9 +348,18 @@ ALTER USER 'root'@'%' IDENTIFIED BY 'your-new-strong-password';
 FLUSH PRIVILEGES;
 EXIT;
 
+# Connect to PostgreSQL container
+docker compose exec postgres psql -U postgres
+
+# Change password
+ALTER USER n8n_user WITH PASSWORD 'your-new-strong-password';
+\q
+
 # Update the .env file with new password
 nano .env
 # Find MYSQL_ROOT_PWD and update it
+# Find POSTGRES_PASSWORD and update it
+
 # Press CTRL+X, then Y, then ENTER to save
 
 # Restart containers to apply new password
@@ -335,11 +367,9 @@ cd ~/docker
 docker compose down
 docker compose up -d
 
-# Verify n8n can connect (if n8n is configured as using MySQL as a DBengine.
-docker compose logs n8n | grep -i "database\|mysql"
+# Verify n8n can connect (if n8n is configured as using Postgres as a DBengine).
+docker compose logs n8n | grep -i "database\|postgres"
 ```
-
-
 
 ### 5.2 Review Authorized SSH Keys
 
@@ -369,7 +399,7 @@ Fail2ban is protecting your server from brute force attacks:
 sudo systemctl status fail2ban
 ```
 **Expected Output:**
-```bash
+```
 ● fail2ban.service - Fail2Ban Service
      Loaded: loaded (/usr/lib/systemd/system/fail2ban.service; enabled; preset: enabled)
      Active: active (running) since Tue 2025-12-23 05:12:39 CET; 5 days ago
@@ -430,6 +460,7 @@ Before moving on, make sure you can check all these boxes:
 
 - [ ] I can access n8n web interface
 - [ ] I can access phpMyAdmin
+- [ ] I can access pgadmin
 - [ ] I can access Traefik dashboard
 - [ ] I can SSH into my server
 - [ ] All Docker containers show "Up" status
@@ -515,4 +546,4 @@ exit
 
 ---
 
-*Last Updated: [29/12/2025]*
+*Last Updated: [07/01/2026]*

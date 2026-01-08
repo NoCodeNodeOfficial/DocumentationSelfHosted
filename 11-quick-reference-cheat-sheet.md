@@ -29,7 +29,7 @@ Your one-stop reference for all important commands, paths, ports, and terms. Pri
 # SSH connection
 ssh USERNAME@your-server-ip
 
-# SSH with specific port and ssh key
+# SSH with specific port and ssh keyfile
 ssh -p 1077 USERNAME@your-server-ip -i pathfile/to/your/private/key
 
 # Exit SSH session
@@ -185,21 +185,22 @@ rm -rf directory_name
 | Check updates      | `~/docker/maintenance/check-updates.sh`   | Look for system update                   |
 | Cleaning docker    | `~/docker/maintenance/docker-cleanup.sh`   | Clean all the unused docker files        |
 | Update OS          | `~/docker/maintenance/os-updates.sh`   | Process OS update                        |
-| Service rollback   | `~/docker/maintenance/rollback.sh`   | Rollback a service after a failed update |
 | Update everything  | `~/docker/maintenance/update-all.sh`   | Update all the services                  |
 | Update one service | `~/docker/maintenance/update-n8n.sh`   | Update only one service                  |
 | Weekly check       | `~/docker/maintenance/weekly-check.sh`   | Do the system weekly check               |
 
 ### Data Directories
 
-| Directory     | Path                                                  | Contents         |
-|---------------|-------------------------------------------------------|------------------|
-| Docker Root   | `~/docker/`                                           | All Docker files |
-| Backups       | `~/docker/backups/`                                   | Backup archives  |
-| Traefik Certs | `/var/lib/docker/volumes/docker_traefik_letsencrypt/` | SSL certificates |
-| n8n Data      | `/var/lib/docker/volumes/docker_n8n_data/`            | n8n workflows    |
-| n8n Files     | `/var/lib/docker/volumes/docker_n8n_files/`           | n8n files        |
-| MySQL Data    | `/var/lib/docker/volumes/docker_mysql_data/`          | Database files   |
+| Directory       | Path                                                  | Contents         |
+|-----------------|-------------------------------------------------------|------------------|
+| Docker Root     | `~/docker/`                                           | All Docker files |
+| Backups         | `~/docker/backups/`                                   | Backup archives  |
+| Traefik Certs   | `/var/lib/docker/volumes/docker_traefik_letsencrypt/` | SSL certificates |
+| n8n Data        | `/var/lib/docker/volumes/docker_n8n_data/`            | n8n workflows    |
+| n8n Files       | `/var/lib/docker/volumes/docker_n8n_files/`           | n8n files        |
+| MySQL Data      | `/var/lib/docker/volumes/docker_mysql_data/`          | Database files   |
+| PostgreSQL Data | `/var/lib/docker/volumes/docker_postgres_data/`       | Database files   |
+| Pgadmin Data    | `/var/lib/docker/volumes/docker_pgadmin_data/`        | Database files   |
 
 ### Documentation Files
 
@@ -223,18 +224,20 @@ rm -rf directory_name
 
 ### Internal Ports (Container-to-Container)
 
-| Port | Service | Purpose |
-|------|---------|---------|
-| 5678 | n8n | Web interface |
-| 3306 | MySQL | Database |
+| Port | Service  | Purpose |
+|------|----------|---------|
+| 5678 | n8n      | Web interface |
+| 3306 | MySQL    | Database |
+| 5432 | Postgres | Database |
 
 ### Service URLs
 
-| Service | URL                                 | Access       |
-|---------|-------------------------------------|--------------|
-| n8n | `https://n8n.yourdomain.website`    | Authenticated |
-| Traefik Dashboard | `https://traefik.yourdomain.website`    | Basic Auth   |
-| phpMyAdmin | `https://phpmy.yourdomain.website` | Basic Auth   |
+| Service           | URL                                  | Access       |
+|-------------------|--------------------------------------|--------------|
+| n8n               | `https://n8n.yourdomain.website`     | Authenticated |
+| Traefik Dashboard | `https://traefik.yourdomain.website` | Basic Auth   |
+| phpMyAdmin        | `https://phpmy.yourdomain.website`   | Basic Auth   |
+| PGadmin           | `https://pgadmin.yourdomain.website` | Basic Auth   |
 
 ---
 
@@ -242,12 +245,14 @@ rm -rf directory_name
 
 When running Docker commands, use these container names:
 
-| Service | Container Name | Purpose |
-|---------|----------------|---------|
-| Traefik | `traefik` | Reverse proxy & SSL |
-| n8n | `n8n` | Workflow automation |
-| MySQL | `db_core` | Database |
-| phpMyAdmin | `phpmy` | Database admin |
+| Service    | Container Name | Purpose |
+|------------|----------------|---------|
+| Traefik    | `traefik`      | Reverse proxy & SSL |
+| n8n        | `n8n`          | Workflow automation |
+| MySQL      | `db_core`      | Database |
+| Postgres   | `postgres`     | Database |
+| phpMyAdmin | `phpmy`        | Database admin |
+| PGadmin    | `pgadmin`      | Database admin |
 
 **Example usage:**
 ```bash
@@ -268,6 +273,8 @@ Full volume names (as Docker sees them):
 | n8n_files           | `docker_n8n_files`           | n8n files                  |
 | mysql_data          | `docker_mysql_data`          | MySQL database files       |
 | traefik_letsencrypt | `docker_traefik_letsencrypt` | SSL certificates           |
+| postgres_data       | `docker_postgres_data`       | Postgres database files    |
+| pgadmin_data        | `docker_pgadmin_data`        | Pgadmin files              |
 
 **Check volumes:**
 ```bash
@@ -315,8 +322,8 @@ docker compose logs --since "2024-01-15T14:00:00"
 # Manual health check
 ~/docker/maintenance/health-check.sh
 
-# Automated health check log
-cat ~/docker/health-check.log
+# Automated health check log (Depend on where do you redirect the CRON job log)
+cat ~/docker/health-check.log 
 ```
 
 ---
@@ -383,7 +390,7 @@ docker compose ps
 # 2. Is Traefik running?
 docker compose logs traefik
 
-# 3. Check DNS resolution
+# 3. Check DNS resolution (If nslookup is installed)
 nslookup yourdomain.website
 
 # 4. Check certificates
@@ -511,16 +518,13 @@ Digital certificates that enable HTTPS encryption.
 An application or process running in a container.
 
 **Subdomain**  
-A subdivision of a domain (e.g., `n8n.yourdomain.com`).
+A subdivision of a domain (e.g. the `n8n` part of `n8n.yourdomain.com`).
 
 **Traefik**  
 A modern HTTP reverse proxy and load balancer.
 
 **Uptime**  
 How long a system has been running without interruption.
-
-**Uptime Kuma**  
-A monitoring tool that checks if your services are running.
 
 **Volume (Docker Volume)**  
 Persistent storage used by Docker containers to save data.
@@ -596,7 +600,6 @@ A human-readable data format often used for configuration files (`.yml` extensio
   traefik                                   Reverse proxy
   n8n                                       Workflow automation
   db_core                                   MySQL database
-  uptime-kuma                               Monitoring
   phpmyadmin                                Database admin
 
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -604,7 +607,7 @@ A human-readable data format often used for configuration files (`.yml` extensio
 └─────────────────────────────────────────────────────────────────────┘
   80                                        HTTP (redirects to 443)
   443                                       HTTPS (main access)
-  22                                        SSH
+  1077                                      SSH
 
 ┌─────────────────────────────────────────────────────────────────────┐
 │ QUICK TROUBLESHOOTING                                               │
@@ -634,7 +637,7 @@ A human-readable data format often used for configuration files (`.yml` extensio
 ┌─────────────────────────────────────────────────────────────────────┐
 │ BEFORE MAKING CHANGES                                               │
 └─────────────────────────────────────────────────────────────────────┘
-  ☐ Create backup: ~/docker/backup.sh
+  ☐ Create backup: ~/docker/maintenance/backup.sh
   ☐ Document what you're doing
   ☐ Check current status: docker compose ps
   ☐ Know how to rollback
@@ -669,7 +672,7 @@ docker compose restart SERVICE_NAME
 ### Backup Before Changes
 ```bash
 # Always run before making changes
-~/docker/backup.sh
+~/docker/maintenance/backup.sh
 ls -lh ~/docker/backups/ | tail -5
 ```
 
@@ -697,4 +700,4 @@ free -h
 
 ---
 
-*Last Updated: 02/01/2026*
+*Last Updated: [08/01/2026]*

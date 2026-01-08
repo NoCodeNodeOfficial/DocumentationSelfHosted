@@ -47,6 +47,8 @@ Your server uses Docker Compose to manage multiple services:
 ```
 ~/docker/
 ├── docker-compose.yml    # Main configuration file
+├── maintenance/          # Maintenance scripts
+├── backups/              # Backups
 ├── my.cnf                # MySQL configuration file
 └── .env                  # Environment variables (passwords, etc.)
 
@@ -54,9 +56,12 @@ Your server uses Docker Compose to manage multiple services:
 
 **Your containers:**
 - **traefik** - Reverse proxy (handles web traffic and SSL)
-- **n8n** - Workflow automation
-- **db_core** - Database for n8n
-- **phpmy** - Tool for database management
+- **n8n** - Workflow automation.
+- **db_core** - Database for storage.
+- **postgres** - Database for n8n if selected.
+- **phpmy** - Tool for mysql database management.
+- **pgadmin** - Tool for postgres database management.
+
 ---
 
 ### Docker vs Docker Compose
@@ -148,11 +153,13 @@ docker compose ps
 
 **Example output:**
 ```
-NAME      IMAGE                     COMMAND                  SERVICE   CREATED      STATUS        PORTS
-db_core   mysql:8.4                 "docker-entrypoint.s…"   db_core   6 days ago   Up 6 days     3306/tcp, 33060/tcp
-n8n       docker.n8n.io/n8nio/n8n   "tini -- /docker-ent…"   n8n       6 days ago   Up 6 days     127.0.0.1:5678->5678/tcp
-phpmy     phpmyadmin:5.2            "/docker-entrypoint.…"   phpmy     6 days ago   Up 6 days     80/tcp
-traefik   traefik                   "/entrypoint.sh --ap…"   traefik   6 days ago   Up 6 days     0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
+NAME       IMAGE                     COMMAND                  SERVICE    CREATED        STATUS             PORTS
+db_core    mysql:8.4                 "docker-entrypoint.s…"   db_core    11 hours ago   Up About an hour   3306/tcp, 33060/tcp
+n8n        docker.n8n.io/n8nio/n8n   "tini -- /docker-ent…"   n8n        11 hours ago   Up About an hour   127.0.0.1:5678->5678/tcp
+pgadmin    dpage/pgadmin4:9          "/entrypoint.sh"         pgadmin    11 hours ago   Up About an hour   80/tcp, 443/tcp
+phpmy      phpmyadmin:5.2            "/docker-entrypoint.…"   phpmy      11 hours ago   Up About an hour   80/tcp
+postgres   postgres:17               "docker-entrypoint.s…"   postgres   11 hours ago   Up About an hour   5432/tcp
+traefik    traefik                   "/entrypoint.sh --ap…"   traefik    11 hours ago   Up About an hour   0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
 ```
 
 ---
@@ -164,12 +171,13 @@ docker ps
 
 **Example output:**
 ```
-mehdi@nocodenode-website:~/docker$ docker ps
-CONTAINER ID   IMAGE                     COMMAND                  CREATED      STATUS        PORTS                                      NAMES
-bb972014a275   phpmyadmin:5.2            "/docker-entrypoint.…"   6 days ago   Up 6 days     80/tcp                                     phpmy
-1994f8e62d69   docker.n8n.io/n8nio/n8n   "tini -- /docker-ent…"   6 days ago   Up 6 days     127.0.0.1:5678->5678/tcp                   n8n
-c33a7f912089   mysql:8.4                 "docker-entrypoint.s…"   6 days ago   Up 6 days     3306/tcp, 33060/tcp                        db_core
-d817925c0764   traefik                   "/entrypoint.sh --ap…"   6 days ago   Up 6 days     0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp   traefik
+CONTAINER ID   IMAGE                     COMMAND                  CREATED        STATUS       PORTS                                      NAMES
+b89dcc467175   phpmyadmin:5.2            "/docker-entrypoint.…"   11 hours ago   Up 2 hours   80/tcp                                     phpmy
+27b635555c20   dpage/pgadmin4:9          "/entrypoint.sh"         11 hours ago   Up 2 hours   80/tcp, 443/tcp                            pgadmin
+3ef0351fce81   docker.n8n.io/n8nio/n8n   "tini -- /docker-ent…"   11 hours ago   Up 2 hours   127.0.0.1:5678->5678/tcp                   n8n
+d96aefe03d77   postgres:17               "docker-entrypoint.s…"   11 hours ago   Up 2 hours   5432/tcp                                   postgres
+a6006df13d7f   mysql:8.4                 "docker-entrypoint.s…"   11 hours ago   Up 2 hours   3306/tcp, 33060/tcp                        db_core
+d878b558c411   traefik                   "/entrypoint.sh --ap…"   11 hours ago   Up 2 hours   0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp   traefik
 ```
 
 ---
@@ -236,7 +244,7 @@ docker compose up -d n8n
 
 **Start multiple specific containers:**
 ```bash
-docker compose up -d n8n mysql
+docker compose up -d n8n postgres
 ```
 
 **Start and view logs:**
@@ -432,7 +440,7 @@ docker compose logs --tail=1000 n8n > n8n-recent.txt
 ```bash
 # In separate terminals or use tmux/screen
 docker compose logs -f n8n
-docker compose logs -f mysql
+docker compose logs -f postgres
 docker compose logs -f traefik
 ```
 
@@ -522,7 +530,7 @@ docker compose exec n8n df -h
 **Test network connectivity:**
 ```bash
 docker compose exec n8n ping -c 4 google.com
-docker compose exec n8n ping -c 4 db_core
+docker compose exec n8n ping -c 4 postgres
 ```
 
 **Check file contents:**
@@ -536,23 +544,23 @@ docker compose exec n8n cat /etc/hosts
 
 **Connect to MySQL:**
 ```bash
-docker compose exec mysql mysql -u root -p
+docker compose exec db_core mysql -u root -p
 # Enter password from .env file (MYSQL_ROOT_PASSWORD)
 ```
 
 **Run MySQL command directly:**
 ```bash
-docker compose exec mysql mysql -u root -pYOUR_PASSWORD -e "SHOW DATABASES;"
+docker compose exec db_core mysql -u root -pYOUR_PASSWORD -e "SHOW DATABASES;"
 ```
 
 **Export database:**
 ```bash
-docker compose exec mysql mysqldump -u root -pYOUR_PASSWORD n8n > backup.sql
+docker compose exec db_core mysqldump -u root -pYOUR_PASSWORD n8n > backup.sql
 ```
 
 **Import database:**
 ```bash
-cat backup.sql | docker compose exec -T mysql mysql -u root -pYOUR_PASSWORD n8n
+cat backup.sql | docker compose exec -T db_core mysql -u root -pYOUR_PASSWORD n8n
 ```
 
 ---
@@ -650,7 +658,7 @@ docker pull n8nio/n8n:latest
 
 **Pull specific version:**
 ```bash
-docker pull n8nio/n8n:1.20.0
+docker pull n8nio/n8n:2.2.4
 ```
 
 **Pull all images from docker-compose.yml:**
@@ -721,6 +729,8 @@ local     docker_mysql_data
 local     docker_n8n_data
 local     docker_n8n_files
 local     docker_traefik_letsencrypt
+local     docker_pgadmin_data
+local     docker_postgres_data
 
 ```
 
@@ -822,7 +832,7 @@ docker run --rm \
 
 **Restore MySQL database:**
 ```bash
-# Import SQL backup
+# Import SQL backup from a mysqldump
 cat n8n-db-backup-20240115.sql | docker compose exec -T db_core mysql -u root -pYOUR_PASSWORD n8n
 ```
 
@@ -867,7 +877,7 @@ docker volume create --driver local my-volume
 docker network ls
 
 # Your default network
-docker network ls | grep docker_default
+docker network ls | grep proxy
 ```
 
 ---
@@ -889,6 +899,7 @@ docker network inspect proxy --format '{{range .Containers}}{{.Name}} {{end}}'
 ```bash
 # Ping between containers (by name)
 docker compose exec n8n ping -c 4 db_core
+docker compose exec n8n ping -c 4 postgres
 docker compose exec n8n ping -c 4 traefik
 
 # Test port connectivity
@@ -972,7 +983,7 @@ docker compose logs -f
 ```yaml
 services:
   n8n:
-    image: n8nio/n8n:1.20.0  # Change from :latest to specific version
+    image: n8nio/n8n:2.2.4  # Change from :latest to specific version
 ```
 
 **Apply changes:**
@@ -1074,9 +1085,9 @@ docker system df
 **Example output:**
 ```
 TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
-Images          5         4         4.141GB   4.022GB (97%)
-Containers      4         4         47.73MB   0B (0%)
-Local Volumes   4         4         386.7MB   0B (0%)
+Images          7         6         5.418GB   5.299GB (97%)
+Containers      6         6         61.12MB   0B (0%)
+Local Volumes   6         6         449.8MB   0B (0%)
 Build Cache     0         0         0B        0B
 ```
 
@@ -1086,7 +1097,7 @@ Build Cache     0         0         0B        0B
 
 **Create cleanup script:**
 ```bash
-nano ~/docker-cleanup.sh
+nano ~/docker/maintenance/docker-cleanup.sh
 ```
 
 **Script content:**
@@ -1118,12 +1129,12 @@ echo "Cleanup complete!"
 
 **Make executable:**
 ```bash
-chmod +x ~/docker-cleanup.sh
+chmod +x ~/docker/maintenance/docker-cleanup.sh
 ```
 
 **Run it:**
 ```bash
-~/docker-cleanup.sh
+~/docker/maintenance/docker-cleanup.sh
 ```
 
 ---
@@ -1242,7 +1253,6 @@ SHOW ENGINE INNODB STATUS\G
 ```bash
 # From host to container
 ping YOUR_SERVER_IP
-curl http://YOUR_SERVER_IP:5678
 
 # From container to container
 docker compose exec n8n ping db_core
@@ -1454,4 +1464,4 @@ cp .env .env.backup
 
 ---
 
-*Last Updated: 29/12/2025*
+*Last Updated: [07/01/2026]*

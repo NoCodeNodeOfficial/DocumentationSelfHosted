@@ -36,6 +36,8 @@ Understanding where you are and how to move around is the foundation of Linux.
 ├── home/                   # User home directories
 │   └── USERNAME/           # Your home directory
 │       └── docker/         # Your Docker setup
+│           ├── maintenance/# Maintenance scripts
+│           └── backups/    # Backups
 ├── etc/                    # System configuration files
 ├── var/                    # Variable data (logs, databases)
 │   └── log/                # Log files
@@ -1360,6 +1362,13 @@ alias grep='grep --color=auto'
 alias update='sudo apt update && sudo apt upgrade -y'
 alias dps='docker ps'
 alias dlog='docker compose logs -f'
+
+# To add at the end of your .bashrc
+# the command lsc will then list the content of a folder with all the directories first, then the hidden files, then the normal files
+lsc() {
+    (ls -lAhd */ 2>/dev/null; ls -lAh | grep "^-" | grep "^\-.*\s\.\|^-.*\s\."; ls -lAh | grep "^-" | grep -v "^\-.*\s\.") | awk 'NR==1 || !/^total/'
+}
+
 ```
 
 ---
@@ -1533,4 +1542,4 @@ Try these to build confidence:
 
 ---
 
-*Last Updated: 29/12/2025*
+*Last Updated: [07/01/2026]*

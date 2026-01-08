@@ -33,18 +33,21 @@ local     docker_mysql_data           # Database (most critical)
 local     docker_n8n_data             # n8n workflows and settings (most critical)
 local     docker_n8n_files            # n8n file storage
 local     docker_traefik_letsencrypt  # SSL certificates
+local     docker_pgadmin_data         # Data pgAdmin
+local     docker_postgres_data        # Database (most critical)
 
 ```
 
 ### What Gets Backed Up
 
-| Volume | Contains                         | Backup Priority |
-|--------|----------------------------------|-----------------|
-| `docker_mysql_data` | All databases (n8n, etc.)        | **Critical**    |
-| `docker_n8n_data` | Workflows, credentials, settings | **Critical**    |
-| `docker_n8n_files` | N8n files                        | High            |
-| `docker_traefik_letsencrypt` | SSL certificates                 | Medium          |
-
+| Volume | Contains                          | Backup Priority |
+|--------|-----------------------------------|-----------------|
+| `docker_mysql_data` | All databases (your data, etc.)   | **Critical**    |
+| `docker_n8n_data` | Workflows, credentials, settings  | **Critical**    |
+| `docker_n8n_files` | N8n files                         | High            |
+| `docker_traefik_letsencrypt` | SSL certificates                  | Medium          |
+| `docker_pgadmin_data` | Data for Postgres admin           | Low             |
+| `docker_postgres_data` | All databases. Can contain n8n DB | **Critical**    |
 
 > 💡 **TIP:** Your `docker-compose.yml` and `.env` files also need backup (they live in `/home/USERNAME/docker/`)
 
@@ -79,7 +82,19 @@ docker run --rm \
   -v $(pwd)/backups:/backup \
   ubuntu tar czf /backup/traefik-$(date +%Y%m%d-%H%M%S).tar.gz -C /data .
 
-# 6. Backup docker-compose files
+# 6. Backup Pgadmin
+docker run --rm \
+  -v docker_pgadmin_data:/data \
+  -v $(pwd)/backups:/backup \
+  ubuntu tar czf /backup/pgadmin-$(date +%Y%m%d-%H%M%S).tar.gz -C /data .
+
+# 7. Backup PostgreSQL
+docker run --rm \
+  -v docker_postgres_data:/data \
+  -v $(pwd)/backups:/backup \
+  ubuntu tar czf /backup/postgres-$(date +%Y%m%d-%H%M%S).tar.gz -C /data .
+  
+# 8. Backup docker-compose files
 tar czf backups/docker-compose-$(date +%Y%m%d-%H%M%S).tar.gz \
   docker-compose.yml .env my.cnf
 ```
@@ -89,7 +104,7 @@ tar czf backups/docker-compose-$(date +%Y%m%d-%H%M%S).tar.gz \
 Create a file called `backup.sh`:
 
 ```bash
-nano ~/docker/backup.sh
+nano ~/docker/maintenance/backup.sh
 ```
 
 Paste this content:
@@ -111,26 +126,47 @@ echo "Backing up MySQL..."
 docker run --rm \
   -v docker_mysql_data:/data \
   -v "$BACKUP_DIR":/backup \
-  ubuntu tar czf /backup/mysql-$DATE.tar.gz -C /data .
+  ubuntu tar czf /backup/mysql_data-$DATE.tar.gz -C /data .
 
-# Backup n8n
-echo "Backing up n8n..."
+# Backup n8n data
+echo "Backing up n8n data..."
 docker run --rm \
   -v docker_n8n_data:/data \
   -v "$BACKUP_DIR":/backup \
-  ubuntu tar czf /backup/n8n-$DATE.tar.gz -C /data .
+  ubuntu tar czf /backup/n8n_data-$DATE.tar.gz -C /data .
+
+# Backup n8n files
+echo "Backing up n8n files..."
+docker run --rm \
+  -v docker_n8n_files:/data \
+  -v "$BACKUP_DIR":/backup \
+  ubuntu tar czf /backup/n8n_files-$DATE.tar.gz -C /data .
 
 # Backup Traefik
 echo "Backing up Traefik..."
 docker run --rm \
   -v docker_traefik_letsencrypt:/data \
   -v "$BACKUP_DIR":/backup \
-  ubuntu tar czf /backup/traefik-$DATE.tar.gz -C /data .
+  ubuntu tar czf /backup/traefik_letsencrypt-$DATE.tar.gz -C /data .
+
+# Backup Pgadmin
+echo "Backing up Pgadmin..."
+docker run --rm \
+  -v docker_pgadmin_data:/data \
+  -v "$BACKUP_DIR":/backup \
+  ubuntu tar czf /backup/pgadmin_data-$DATE.tar.gz -C /data .
+
+# Backup PostgreSQL
+echo "Backing up PostgreSQL..."
+docker run --rm \
+  -v docker_postgres_data:/data \
+  -v "$BACKUP_DIR":/backup \
+  ubuntu tar czf /backup/postgres_data-$DATE.tar.gz -C /data .
 
 # Backup compose files
 echo "Backing up docker-compose files..."
 cd ~/docker
-tar czf "$BACKUP_DIR/docker-compose-$DATE.tar.gz" docker-compose.yml .env
+tar czf "$BACKUP_DIR/docker-compose-$DATE.tar.gz" docker-compose.yml .env my.cnf
 
 echo "Backup completed at $(date)"
 echo "Backups saved to: $BACKUP_DIR"
@@ -139,13 +175,13 @@ echo "Backups saved to: $BACKUP_DIR"
 Make it executable:
 
 ```bash
-chmod +x ~/docker/backup.sh
+chmod +x ~/docker/maintenance/backup.sh
 ```
 
 Run it:
 
 ```bash
-~/docker/backup.sh
+~/docker/maintenance/backup.sh
 ```
 
 ---
@@ -159,7 +195,7 @@ Run it:
 crontab -e
 
 # 2. Add this line (runs daily at 2 AM)
-0 2 * * * /home/USERNAME/docker/backup.sh >> /home/USERNAME/docker/backups/backup.log 2>&1
+0 2 * * * /home/USERNAME/docker/maintenance/backup.sh >> /home/USERNAME/docker/backups/backup.log 2>&1
 
 # 3. Save and exit (Ctrl+X, then Y, then Enter)
 ```
@@ -194,21 +230,33 @@ ls -lh backups/
 docker run --rm \
   -v docker_mysql_data:/data \
   -v $(pwd)/backups:/backup \
-  ubuntu bash -c "rm -rf /data/* && tar xzf /backup/mysql-DATE.tar.gz -C /data"
+  ubuntu bash -c "rm -rf /data/* && tar xzf /backup/mysql_data-DATE.tar.gz -C /data"
 
-# 4. Restore n8n
+# 4. Restore n8n data
 docker run --rm \
   -v docker_n8n_data:/data \
   -v $(pwd)/backups:/backup \
-  ubuntu bash -c "rm -rf /data/* && tar xzf /backup/n8n-DATE.tar.gz -C /data"
+  ubuntu bash -c "rm -rf /data/* && tar xzf /backup/n8n_data-DATE.tar.gz -C /data"
 
 # 5. Restore Traefik
 docker run --rm \
   -v docker_traefik_letsencrypt:/data \
   -v $(pwd)/backups:/backup \
-  ubuntu bash -c "rm -rf /data/* && tar xzf /backup/traefik-DATE.tar.gz -C /data"
+  ubuntu bash -c "rm -rf /data/* && tar xzf /backup/traefik_letsencrypt-DATE.tar.gz -C /data"
 
-# 6. Restart containers
+# 6. Restore Pgadmin
+docker run --rm \
+  -v docker_pgadmin_data:/data \
+  -v $(pwd)/backups:/backup \
+  ubuntu bash -c "rm -rf /data/* && tar xzf /backup/pgadmin_data-DATE.tar.gz -C /data"
+
+# 7. Restore Traefik
+docker run --rm \
+  -v docker_postgres_data:/data \
+  -v $(pwd)/backups:/backup \
+  ubuntu bash -c "rm -rf /data/* && tar xzf /backup/postgres_data-DATE.tar.gz -C /data"
+  
+# 8. Restart containers
 docker compose up -d
 ```
 
@@ -218,34 +266,29 @@ Before you need it, test your backups work:
 
 ```bash
 # 1. Create test volumes
-docker volume create test_mysql_restore
-docker volume create test_n8n_restore
+docker volume create test_postgres_restore
 
 # 2. Restore to test volumes (replace LATEST with your backup date)
 docker run --rm \
-  -v test_mysql_restore:/data \
+  -v test_postgres_restore:/data \
   -v $(pwd)/backups:/backup \
-  ubuntu tar xzf /backup/mysql-LATEST.tar.gz -C /data
+  ubuntu tar xzf /backup/postgres_data-LATEST.tar.gz -C /data
 
 # 3. Verify contents
 docker run --rm \
-  -v test_mysql_restore:/data \
+  -v test_postgres_restore:/data \
   ubuntu ls -lah /data
 
 # 4. Clean up test volumes
-docker volume rm test_mysql_restore test_n8n_restore
+docker volume rm test_postgres_restore
 ```
-### Script for easy restoration
-You're absolutely right! The restore script should match the backup strategy - **individual volume restoration**, not all-at-once. Let me fix that.
-
----
 
 ## Restoration Script
 
 Create a restoration script for flexible recovery:
 
 ```bash
-nano ~/docker/restore.sh
+nano ~/docker/maintenance/restore.sh
 ```
 
 **Add this content:**
@@ -285,10 +328,12 @@ show_usage() {
     echo "  n8n_files           - n8n files"
     echo "  mysql_data          - MySQL database"
     echo "  traefik_letsencrypt - SSL certificates"
+    echo "  pgadmin_data        - Pgadmin data"
+    echo "  postgres_data       - PostgreSQL database"
     echo
     echo "Examples:"
-    echo "  $0 n8n_data $BACKUP_DIR/n8n_data-20240115-020000.tar.gz"
-    echo "  $0 mysql_data $BACKUP_DIR/mysql_data-20240115-020000.tar.gz"
+    echo "  $0 n8n_data $BACKUP_DIR/n8n_data-20260107-024827.tar.gz"
+    echo "  $0 postgres_data $BACKUP_DIR/postgres_data-20260107-024827.tar.gz"
     echo
     echo "Available backups:"
     ls -lh "$BACKUP_DIR"/*.tar.gz 2>/dev/null | awk '{print "  " $9 " (" $5 ")"}'
@@ -332,7 +377,7 @@ fi
 echo -e "${BLUE}Volume to restore: ${NC}$FULL_VOLUME_NAME"
 echo -e "${BLUE}Backup file: ${NC}$BACKUP_FILE"
 echo -e "${BLUE}Backup size: ${NC}$(du -h "$BACKUP_FILE" | cut -f1)"
-echo -e "${BLUE}Backup date: ${NC}$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$BACKUP_FILE" 2>/dev/null || stat -c "%y" "$BACKUP_FILE" 2>/dev/null | cut -d'.' -f1)"
+echo -e "${BLUE}Backup date: ${NC}$(stat -c "%y" "$BACKUP_FILE" 2>/dev/null | cut -d'.' -f1)"
 echo
 
 # Determine which containers use this volume
@@ -346,6 +391,12 @@ case "$VOLUME_NAME" in
         ;;
     *traefik*)
         AFFECTED_CONTAINERS=("traefik")
+        ;;
+    *pgadmin*)
+        AFFECTED_CONTAINERS=("pgadmin")
+        ;;
+    *postgres*)
+        AFFECTED_CONTAINERS=("postgres")
         ;;
 esac
 
@@ -378,7 +429,7 @@ if [ ${#AFFECTED_CONTAINERS[@]} -gt 0 ]; then
     echo -e "${YELLOW}[1/5] Stopping affected containers...${NC}"
     cd "$DOCKER_DIR"
     for container in "${AFFECTED_CONTAINERS[@]}"; do
-        if docker compose ps --services | grep -q "^${container}$"; then
+        if docker compose config --services | grep -q "^${container}$"; then
             echo "  → Stopping $container..."
             docker compose stop "$container" 2>/dev/null || true
         fi
@@ -440,9 +491,9 @@ if [ ${#AFFECTED_CONTAINERS[@]} -gt 0 ]; then
     echo -e "${YELLOW}[$STEP/5] Starting affected containers...${NC}"
     cd "$DOCKER_DIR"
     for container in "${AFFECTED_CONTAINERS[@]}"; do
-        if docker compose ps --services | grep -q "^${container}$"; then
+        if docker compose config --services | grep -q "^${container}$"; then
             echo "  → Starting $container..."
-            docker compose start "$container"
+            docker compose up -d "$container"
         fi
     done
 
@@ -491,7 +542,7 @@ echo "- Contact your administrator if needed"
 **Save and make it executable:**
 
 ```bash
-chmod +x ~/docker/restore.sh
+chmod +x ~/docker/maintenance/restore.sh
 ```
 
 ---
@@ -502,8 +553,8 @@ chmod +x ~/docker/restore.sh
 
 ```bash
 # Restore a specific volume
-~/docker/restore.sh n8n_data ~/docker/backups/n8n_data-20240115-020000.tar.gz
-~/docker/restore.sh mysql_data ~/docker/backups/mysql_data-20240115-020000.tar.gz
+~/docker/maintenance/restore.sh n8n_data ~/docker/backups/n8n_data-20260107-024827.tar.gz
+~/docker/maintenance/restore.sh mysql_data ~/docker/backups/mysql_data-20260107-024827.tar.gz
 ```
 
 ### List Available Backups
@@ -520,37 +571,37 @@ ls -lh ~/docker/backups/mysql_data-*.tar.gz
 ### Example Restoration Session
 
 ```bash
-$ ~/docker/restore.sh n8n_data ~/docker/backups/n8n_data-20240115-020000.tar.gz
-
+$ ./maintenance/restore.sh mysql_data /home/USERNAME/docker/backups/mysql_data-20260107-045503.tar.gz
 ==================================
 Docker Volume Restoration Script
 ==================================
 
-Volume to restore: docker_n8n_data
-Backup file: /home/user/docker/backups/n8n_data-20240115-020000.tar.gz
-Backup size: 45M
-Backup date: 2024-01-15 02:00:00
+Volume to restore: docker_mysql_data
+Backup file: /home/USERNAME/docker/backups/mysql_data-20260107-045503.tar.gz
+Backup size: 7.3M
+Backup date: 2026-01-07 04:55:08
 
 This will affect the following containers:
-  - n8n
+  - db_core
 
 ⚠️  WARNING ⚠️
-This will OVERWRITE all current data in docker_n8n_data!
+This will OVERWRITE all current data in docker_mysql_data!
 Current data will be permanently lost.
 
 Are you sure you want to continue? (type 'yes' to proceed): yes
 
 Starting restoration process...
 
+docker dir : /home/USERNAME/docker
 [1/5] Stopping affected containers...
-  → Stopping n8n...
+  → Stopping db_core...
 ✓ Containers stopped
 
 [2/5] Verifying volume is not in use...
 ✓ Volume is not in use
 
 [3/5] Creating safety backup of current data...
-✓ Safety backup created: /home/user/docker/backups/SAFETY-n8n_data-20240115-143022.tar.gz
+✓ Safety backup created: /home/USERNAME/docker/backups/SAFETY-mysql_data-20260107-060333.tar.gz
   (You can delete this later if restoration is successful)
 
 [4/5] Restoring volume from backup...
@@ -559,31 +610,33 @@ Starting restoration process...
 ✓ Volume restored
 
 [5/5] Starting affected containers...
-  → Starting n8n...
+  → Starting db_core...
+[+] start 1/1
+ ✔ Container db_core Started                                                                                                                                                                         0.3s
   → Waiting for services to initialize...
 ✓ Containers started
 
 Container Status:
-NAME   IMAGE          STATUS         PORTS
-n8n    n8nio/n8n      Up 6 seconds   0.0.0.0:5678->5678/tcp
+NAME      IMAGE       COMMAND                  SERVICE   CREATED        STATUS         PORTS
+db_core   mysql:8.4   "docker-entrypoint.s…"   db_core   14 hours ago   Up 5 seconds   3306/tcp, 33060/tcp
 
 ==================================
 Restoration Complete!
 ==================================
 
-Volume restored: docker_n8n_data
-From backup: /home/user/docker/backups/n8n_data-20240115-020000.tar.gz
-Safety backup: /home/user/docker/backups/SAFETY-n8n_data-20240115-143022.tar.gz
+Volume restored: docker_mysql_data
+From backup: /home/USERNAME/docker/backups/mysql_data-20260107-045503.tar.gz
+Safety backup: /home/USERNAME/docker/backups/SAFETY-mysql_data-20260107-060333.tar.gz
 
 Next steps:
 1. Test that the service works correctly
 2. Check logs for any errors:
-   docker compose logs n8n
+   docker compose logs db_core
 3. If everything works, you can delete the safety backup:
-   rm /home/user/docker/backups/SAFETY-n8n_data-20240115-143022.tar.gz
+   rm /home/USERNAME/docker/backups/SAFETY-mysql_data-20260107-060333.tar.gz
 
 If you encounter issues:
-- Restore the safety backup: ~/docker/restore.sh n8n_data /home/user/docker/backups/SAFETY-n8n_data-20240115-143022.tar.gz
+- Restore the safety backup: ./maintenance/restore.sh mysql_data /home/mehdi/docker/backups/SAFETY-mysql_data-20260107-060333.tar.gz
 - Check container logs for errors
 - Contact your administrator if needed
 ```
@@ -644,7 +697,7 @@ rsync -avz ~/docker/backups/ USERNAME@backup-server:/backups/docker/
 ### Backup Commands
 ```bash
 # Manual backup
-~/docker/backup.sh
+~/docker/maintenance/backup.sh
 
 # Check backup size
 du -sh ~/docker/backups/
@@ -706,4 +759,4 @@ docker run --rm -v docker_mysql_data:/data ubuntu ls -la /data
 **Back to:** [Documentation Home](README.md)  
 ---
 
-*Last Updated: 29/12/2025*
+*Last Updated: [07/01/2026]*
